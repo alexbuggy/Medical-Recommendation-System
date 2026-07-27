@@ -1,10 +1,18 @@
-import os
+﻿import os
 import io
 import re
 import fitz
 import pdfplumber
 import numpy as np
 from PIL import Image
+
+import config as _config
+try:
+    import pytesseract as _pyt
+    if _config.TESSERACT_CMD:
+        _pyt.pytesseract.tesseract_cmd = _config.TESSERACT_CMD
+except ImportError:
+    pass
 
 from pdf_gpt_extractor import (
     extract_values_with_gpt,
@@ -34,18 +42,18 @@ MIN_DIGIT_RATIO = 0.02
 # Sinonime per analiza
 LABEL_KEYWORDS = {
     "age": [
-        "varsta", "vârstă", "varlsta", "age", "ani impliniti",
+        "varsta", "vÃ¢rstÄƒ", "varlsta", "age", "ani impliniti",
     ],
     "sex": [
         "sex", "gen", "gender",
     ],
     "glucose": [
         "glicemie a jeun", "glicemie bazala", "fasting glucose",
-        "blood glucose", "serum glucose", "glucoza serica", "glucoză serică",
-        "glicemie", "glucoză", "glucoza", "glucose", "glycemia", "glycaemia",
+        "blood glucose", "serum glucose", "glucoza serica", "glucozÄƒ sericÄƒ",
+        "glicemie", "glucozÄƒ", "glucoza", "glucose", "glycemia", "glycaemia",
     ],
     "hba1c": [
-        "hemoglobina glicata", "hemoglobină glicată", "glycated hemoglobin",
+        "hemoglobina glicata", "hemoglobinÄƒ glicatÄƒ", "glycated hemoglobin",
         "hemoglobina glicozilata", "hba1c", "hb a1c", "a1c",
     ],
     "cholesterol_total": [
@@ -63,8 +71,8 @@ LABEL_KEYWORDS = {
         "triglicerides", " tg ",
     ],
     "hemoglobin": [
-        "hemoglobina sanguina", "hemoglobină sanguină",
-        "hemoglobina", "hemoglobină", "hemoglobin", "hgb", " hb ",
+        "hemoglobina sanguina", "hemoglobinÄƒ sanguinÄƒ",
+        "hemoglobina", "hemoglobinÄƒ", "hemoglobin", "hgb", " hb ",
     ],
     "hematocrit": [
         "hematocrit", " hct ", " ht ",
@@ -74,13 +82,13 @@ LABEL_KEYWORDS = {
         "numar leucocite", " l ",
     ],
     "creatinine": [
-        "creatinina serica", "creatinină serică", "serum creatinine",
-        "creatinina", "creatinină", "creatinine", " crea ", " cre ",
+        "creatinina serica", "creatininÄƒ sericÄƒ", "serum creatinine",
+        "creatinina", "creatininÄƒ", "creatinine", " crea ", " cre ",
     ],
     "egfr": [
         ("regex", r"(rata|indice|estimare(?:a)?|clearance)[\s\w,.\-()]{0,50}?"
                   r"(filtr|glomerul|renal)"),
-        ("regex", r"(filtr[aă]r[ie]i?|filtrare)\s+glomerular[aă]"),
+        ("regex", r"(filtr[aÄƒ]r[ie]i?|filtrare)\s+glomerular[aÄƒ]"),
         "estimated glomerular filtration rate", "estimated gfr",
         "egfr ckd-epi", "egfr ckd epi", "ckd-epi", "ckd epi",
         "raport rfg", "raport rgf",
@@ -88,8 +96,8 @@ LABEL_KEYWORDS = {
     ],
     "bun": [
         "blood urea nitrogen", "azot ureic sanguin", "azot ureic",
-        "nitrogen ureic", "uree azotata", "uree azotată", "azotemie", " bun ",
-        "uree serica", "uree serică", "serum urea", "uree", "urea",
+        "nitrogen ureic", "uree azotata", "uree azotatÄƒ", "azotemie", " bun ",
+        "uree serica", "uree sericÄƒ", "serum urea", "uree", "urea",
     ],
     "alt": [
         "alanin aminotransferaza", "alanine aminotransferase",
@@ -100,7 +108,7 @@ LABEL_KEYWORDS = {
         " ast ", " tgo ", " got ",
     ],
     "bilirubin_total": [
-        "bilirubina totala", "bilirubină totală", "total bilirubin",
+        "bilirubina totala", "bilirubinÄƒ totalÄƒ", "total bilirubin",
         "bilirubina t", "bilirubin total",
     ],
 }
@@ -188,7 +196,7 @@ def ocr_pdf_with_tesseract(pdf_path: str, verbose: bool = True) -> str:
         import pytesseract
     except ImportError:
         if verbose:
-            print("  cv2/pytesseract lipsesc — sar peste OCR")
+            print("  cv2/pytesseract lipsesc â€” sar peste OCR")
         return ""
     images = pdf_to_images_for_ocr(pdf_path, zoom=3)
     if verbose:
@@ -233,9 +241,9 @@ def _is_in_range(field: str, value: float) -> bool:
 def _looks_like_reference_range(line: str, num_start: int, num_end: int) -> bool:
     before = line[max(0, num_start - 3):num_start]
     after = line[num_end:num_end + 3]
-    if re.search(r"[-–—]\s*$", before) or re.search(r"^\s*[-–—]", after):
+    if re.search(r"[-â€“â€”]\s*$", before) or re.search(r"^\s*[-â€“â€”]", after):
         return True
-    if re.search(r"[<>≤≥]\s*$", before):
+    if re.search(r"[<>â‰¤â‰¥]\s*$", before):
         return True
     return False
 
@@ -309,7 +317,7 @@ def _find_value_for_label(lines, label_keywords, field):
 def _find_age(lines):
     for line in lines:
         ll = line.lower()
-        if "varsta" in ll or "vârstă" in ll or "age" in ll:
+        if "varsta" in ll or "vÃ¢rstÄƒ" in ll or "age" in ll:
             m = re.search(r"(\d{1,3})", ll[ll.find("varsta") if "varsta" in ll else 0:])
             if m:
                 v = float(m.group(1))
@@ -330,7 +338,7 @@ def _find_sex(lines):
             seg = ll.split("sex", 1)[-1] if "sex" in ll else ll
             if re.search(r"\b(f|feminin|femeie|female)\b", seg):
                 return 1.0
-            if re.search(r"\b(m|masculin|barbat|b[aă]rbat|male)\b", seg):
+            if re.search(r"\b(m|masculin|barbat|b[aÄƒ]rbat|male)\b", seg):
                 return 0.0
     return np.nan
 
@@ -407,7 +415,7 @@ def extract_medical_values_from_pdf(pdf_path: str, use_gpt: bool = True,
         source = "GPT primary + regex fill" if gpt_values else "regex only"
     else:
         if verbose:
-            print(" PDF scanat — vision + OCR")
+            print(" PDF scanat â€” vision + OCR")
         gpt_values = {}
         if use_gpt:
             images = pdf_to_images_for_ocr(pdf_path)
@@ -422,12 +430,12 @@ def extract_medical_values_from_pdf(pdf_path: str, use_gpt: bool = True,
         print(f"\n Rezultat extragere PDF ({source}):")
         for f in ALL_FIELDS:
             v = final.get(f, np.nan)
-            mark = "✓" if not _is_nan(v) else "✗"
+            mark = "âœ“" if not _is_nan(v) else "âœ—"
             print(f"   {mark} {f:<18} = {v}")
     return final
 
 
-# Extrage valori dintr-o IMAGINE (.png/.jpg/.jpeg) — poza cu analizele.
+# Extrage valori dintr-o IMAGINE (.png/.jpg/.jpeg) â€” poza cu analizele.
 # Acelasi pipeline ca PDF scanat: OCR Tesseract + GPT vision.
 def extract_medical_values_from_image(img_path: str, use_gpt: bool = True,
                                        verbose: bool = True) -> dict:
@@ -470,7 +478,7 @@ def extract_medical_values_from_image(img_path: str, use_gpt: bool = True,
         ocr_text = best
     except ImportError:
         if verbose:
-            print("  cv2/pytesseract lipsesc — doar GPT vision")
+            print("  cv2/pytesseract lipsesc â€” doar GPT vision")
 
     regex_values = extract_values_regex(ocr_text) if ocr_text else {}
     final = _fill_gaps(gpt_values, regex_values) if gpt_values else dict(regex_values)
@@ -482,11 +490,11 @@ def extract_medical_values_from_image(img_path: str, use_gpt: bool = True,
         print(f"\n Rezultat extragere imagine ({source}):")
         for f in ALL_FIELDS:
             v = final.get(f, np.nan)
-            mark = "✓" if not _is_nan(v) else "✗"
+            mark = "âœ“" if not _is_nan(v) else "âœ—"
             print(f"   {mark} {f:<18} = {v}")
     return final
 
-# Punct de intrare UNIVERSAL — detecteaza automat PDF vs imagine dupa extensie si cheama functia potrivita.
+# Punct de intrare UNIVERSAL â€” detecteaza automat PDF vs imagine dupa extensie si cheama functia potrivita.
 def extract_medical_values(file_path: str, use_gpt: bool = True,
                             verbose: bool = True) -> dict:
     ext = os.path.splitext(file_path)[1].lower()

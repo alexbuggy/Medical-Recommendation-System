@@ -9,27 +9,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from dotenv import load_dotenv
 
-load_dotenv()
+from config import DATABASE_URL, CNP_PEPPER
 
-
-# SQLite default — fișier local în ./data/medrec.db.
-# Pentru a comuta la PostgreSQL în producție: setează DATABASE_URL în .env la
-# format postgresql://user:pass@host:5432/dbname. Codul rămâne identic.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/medrec.db")
-
-# Pepper pentru CNP — un secret fixe care se adaugă la fiecare CNP înainte
-# de hashare. Asta previne rainbow tables: dacă cineva fură doar baza de
-# date, are nevoie ȘI de pepper-ul din .env ca să poată brute-force CNP-uri.
-CNP_PEPPER = os.getenv("CNP_PEPPER", "change-this-in-production")
-if CNP_PEPPER == "change-this-in-production":
-    print("  WARNING: folosești CNP_PEPPER default. Setează unul în .env!")
-
-# Asigură că folderul ./data există pentru SQLite
+# SQLite needs check_same_thread=False for FastAPI; the data dir is
+# already created by config.py. Postgres ignores the incompatible arg.
 if DATABASE_URL.startswith("sqlite"):
-    os.makedirs("data", exist_ok=True)
-    # SQLite are nevoie de check_same_thread=False pentru FastAPI (async).
-    # Pentru PostgreSQL nu se aplică — SQLAlchemy ignoră argumentele
-    # incompatibile.
     engine = create_engine(
         DATABASE_URL,
         echo=False,

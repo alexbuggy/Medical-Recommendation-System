@@ -1,5 +1,4 @@
-import os
-import secrets
+﻿import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -8,18 +7,15 @@ from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
+
 
 from database import User, get_db
 
-load_dotenv()
-
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-this-secret-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12  # 12 ore
-
-if SECRET_KEY == "change-this-secret-in-production":
-    print("  WARNING: folosești JWT_SECRET_KEY default. Setează unul în .env!")
+from config import (
+    JWT_SECRET_KEY as SECRET_KEY,
+    JWT_ALGORITHM as ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
@@ -55,13 +51,13 @@ def get_current_user(
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Necesită autentificare",
+            detail="NecesitÄƒ autentificare",
             headers={"WWW-Authenticate": "Bearer"},
         )
     payload = decode_token(token)
     user_id = payload.get("sub")
     if not user_id:
-        raise HTTPException(401, "Token invalid (lipsește sub)")
+        raise HTTPException(401, "Token invalid (lipseÈ™te sub)")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(401, "User inexistent")
@@ -72,13 +68,13 @@ def get_current_user(
 
 def require_medic(user: User = Depends(get_current_user)) -> User:
     if user.role != "medic":
-        raise HTTPException(403, "Necesită rol medic")
+        raise HTTPException(403, "NecesitÄƒ rol medic")
     return user
 
 
 def require_patient(user: User = Depends(get_current_user)) -> User:
     if user.role != "patient":
-        raise HTTPException(403, "Necesită rol pacient")
+        raise HTTPException(403, "NecesitÄƒ rol pacient")
     return user
 
 ACTIVATION_CODE_LIFETIME_HOURS = 48
@@ -90,3 +86,4 @@ def generate_activation_code() -> str:
 
 def generate_temp_password() -> str:
     return secrets.token_urlsafe(12)
+
