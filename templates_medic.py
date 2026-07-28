@@ -541,7 +541,7 @@ MEDIC_DASHBOARD_HTML = r"""
       patient_cnp: cnp,
       patient_email: email,
       use_gpt: extractData.used_gpt,
-      pdf_temp_path: extractData.pdf_temp_path,
+      upload_token: extractData.upload_token,
       override_specialist: null,
     };
     // Cele 23 feature-uri

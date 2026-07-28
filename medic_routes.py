@@ -1,8 +1,10 @@
 
 import os
 import math
+import time
 import uuid
 import shutil
+import secrets
 import tempfile
 import traceback
 from datetime import datetime, timedelta
@@ -37,6 +39,12 @@ router = APIRouter(prefix="/medic", tags=["medic"])
 
 UPLOADS_DIR = "uploads"
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+# Maps an opaque token -> server-side temp path from /extract.
+# The client never supplies a filesystem path, preventing arbitrary
+# file reads via /predict. In-process dict; a multi-instance deploy
+# would use Redis or the DB instead.
+_EXTRACT_TOKENS: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -78,8 +86,8 @@ class PredictRequest(BaseModel):
     use_gpt: bool = True
     override_specialist: Optional[str] = None
 
-    # Calea PDF-ului din pasul /extract
-    pdf_temp_path: str
+    # Token opac emis de /extract (nu o cale de fisier)
+    upload_token: str
 
 
 class OverrideRequest(BaseModel):
@@ -121,6 +129,10 @@ async def medic_extract(
         clean_vals = clean_extracted(vals)
         missing_extractable = [f for f, v in clean_vals.items() if v is None]
 
+        upload_token = secrets.token_urlsafe(24)
+        _EXTRACT_TOKENS[upload_token] = {
+            "medic_id": medic.id, "path": tmp_path, "created": time.time()}
+
         return JSONResponse({
             "extracted_values": clean_vals,           # cele extractabile (19)
             "missing_fields": missing_extractable,    # din cele extractabile
@@ -129,7 +141,7 @@ async def medic_extract(
             "patient_name": identity["name"],
             "patient_cnp": identity["cnp"],
             "cnp_valid": identity["cnp_valid"],
-            "pdf_temp_path": tmp_path,
+            "upload_token": upload_token,
             "used_gpt": use_gpt,
         })
 
@@ -220,12 +232,18 @@ async def medic_predict(payload: PredictRequest,
         patient_uploads = os.path.join(UPLOADS_DIR, patient_profile.id)
         os.makedirs(patient_uploads, exist_ok=True)
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        pdf_ext = os.path.splitext(payload.pdf_temp_path)[1] or ".pdf"
+        # Resolve the token to a server-held path. The client cannot
+        # supply a path, only a token we issued. .pop makes it single-use.
+        entry = _EXTRACT_TOKENS.get(payload.upload_token)
+        if (not entry or entry["medic_id"] != medic.id
+                or time.time() - entry["created"] > 3600
+                or not os.path.exists(entry["path"])):
+            raise HTTPException(400, "Upload token invalid sau expirat")
+        tmp_src = entry["path"]
+        _EXTRACT_TOKENS.pop(payload.upload_token, None)
+        pdf_ext = os.path.splitext(tmp_src)[1] or ".pdf"
         final_pdf_path = os.path.join(patient_uploads, f"{timestamp}{pdf_ext}")
-        if os.path.exists(payload.pdf_temp_path):
-            shutil.move(payload.pdf_temp_path, final_pdf_path)
-        else:
-            final_pdf_path = ""
+        shutil.move(tmp_src, final_pdf_path)
 
         # 8. Salveaza raportul (extracted_values = 23 feature-uri, JSON in DB)
         # Adaugam si explicatia SHAP pentru audit
