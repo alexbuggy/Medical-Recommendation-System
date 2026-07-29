@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from auth import (
     hash_password, verify_password, create_access_token,
     get_current_user,
 )
+from rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -58,7 +59,8 @@ def register_medic(payload: MedicRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form.username.lower()).first()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(401, "Email sau parolă greșită")
@@ -75,7 +77,8 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
 
 @router.post("/activate", response_model=LoginResponse)
-def activate(payload: ActivateRequest, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+def activate(request: Request, payload: ActivateRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     if not user:
         raise HTTPException(404, "Cont inexistent")

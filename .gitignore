@@ -1,4 +1,4 @@
-﻿
+
 .env
 .env.*
 !.env.example
@@ -38,3 +38,6 @@ logs/
 # Claude Code (local only)
 CLAUDE.md
 .claude/
+
+# Diff review files (local only)
+*_diff.txt

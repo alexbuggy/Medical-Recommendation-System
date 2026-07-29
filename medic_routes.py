@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -24,6 +24,7 @@ from auth import (
 )
 from email_service import send_activation_email
 from patient_identity import extract_patient_identity
+from rate_limit import limiter
 
 # Extragere unificata (PDF / imagine)
 from pdf_utils import *
@@ -99,7 +100,9 @@ class OverrideRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/extract")
+@limiter.limit("10/minute")
 async def medic_extract(
+    request: Request,
     file: UploadFile = File(...),
     use_gpt: bool = Form(True),
     medic: User = Depends(require_medic),

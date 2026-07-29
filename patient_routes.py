@@ -6,13 +6,14 @@ import tempfile
 import traceback
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db, User, PatientProfile, Report
 from auth import require_patient
+from rate_limit import limiter
 
 from pdf_utils import extract_medical_values
 
@@ -96,7 +97,9 @@ def my_reports(patient: User = Depends(require_patient),
 # ---------------------------------------------------------------------------
 
 @router.post("/self-extract")
+@limiter.limit("10/minute")
 async def self_extract(
+    request: Request,
     file: UploadFile = File(...),
     use_gpt: bool = Form(True),
     patient: User = Depends(require_patient),
