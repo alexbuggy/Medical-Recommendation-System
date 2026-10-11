@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,6 +11,7 @@ from auth import (
     get_current_user,
 )
 from rate_limit import limiter
+import config
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,6 +19,7 @@ class MedicRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     full_name: str = Field(min_length=2)
+    invite_code: str
 
 
 class ActivateRequest(BaseModel):
@@ -33,7 +36,15 @@ class LoginResponse(BaseModel):
     full_name: str
 
 @router.post("/register-medic", response_model=LoginResponse)
-def register_medic(payload: MedicRegister, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+def register_medic(request: Request, payload: MedicRegister,
+                    db: Session = Depends(get_db)):
+    # Invite-only: medic is the privileged role. compare_digest is
+    # constant-time, so a wrong code leaks nothing by timing.
+    if not secrets.compare_digest(payload.invite_code.encode(),
+                                   config.MEDIC_INVITE_CODE.encode()):
+        raise HTTPException(403, "Cod de invitație invalid")
+
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(400, "Email deja înregistrat")

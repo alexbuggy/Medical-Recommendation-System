@@ -87,6 +87,10 @@ LOGIN_HTML = r"""
         <label>Parolă (minim 8 caractere)</label>
         <input type="password" id="reg-password" required>
       </div>
+      <div class="form-group">
+        <label>Cod de invitație</label>
+        <input type="password" id="reg-invite" required>
+      </div>
       <button onclick="doRegister()">Creează cont medic</button>
     </div>
 
@@ -160,6 +164,7 @@ LOGIN_HTML = r"""
       full_name: document.getElementById('reg-name').value,
       email: document.getElementById('reg-email').value,
       password: document.getElementById('reg-password').value,
+      invite_code: document.getElementById('reg-invite').value,
     };
     try {
       const r = await fetch('/auth/register-medic', {

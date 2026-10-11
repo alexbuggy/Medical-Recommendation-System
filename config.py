@@ -66,6 +66,10 @@ def _require_secret(name: str) -> str:
 JWT_SECRET_KEY = _require_secret("JWT_SECRET_KEY")
 CNP_PEPPER = _require_secret("CNP_PEPPER")
 
+# Gates /auth/register-medic. Medic is the privileged role, so registration
+# is invite-only; without this the endpoint would be open to anyone.
+MEDIC_INVITE_CODE = _require_secret("MEDIC_INVITE_CODE")
+
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 12)))
 
@@ -101,3 +105,13 @@ SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "MedRec")
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 IS_PRODUCTION = ENVIRONMENT.lower() == "production"
+
+# Comma-separated allowlist for CORS. The default covers local dev only;
+# a deployment sets CORS_ORIGINS to its real origin(s).
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080"
+    ).split(",")
+    if o.strip()
+]
