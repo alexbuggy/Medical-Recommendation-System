@@ -35,9 +35,6 @@ Thumbs.db
 *.log
 logs/
 
-# Claude Code (local only)
-CLAUDE.md
-.claude/
+.pytest_cache/
 
-# Diff review files (local only)
-*_diff.txt
+tests/

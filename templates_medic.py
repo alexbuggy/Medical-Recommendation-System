@@ -331,6 +331,13 @@ MEDIC_DASHBOARD_HTML = r"""
   // Cele 6 clase ale modelului
   const SPECIALISTS = ['Cardiolog','Diabetolog','Hematolog','Medicina interna','Nefrolog','Pneumolog'];
 
+  // Orice text venit de la server trece prin esc() inainte de innerHTML.
+  // Numele pacientilor si textul rapoartelor sunt date necontrolate.
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
   let extractData = null;
   const token = localStorage.getItem('medrec_token');
 
@@ -513,7 +520,7 @@ MEDIC_DASHBOARD_HTML = r"""
     } else {
       const step = meta.step || '0.01';
       inputHtml = `<input type="number" step="${step}" id="f-${field}"
-        value="${hasValue ? v : ''}" placeholder="${isUserOnly ? 'introdu manual' : (hasValue ? '' : 'lipsă')}">`;
+        value="${hasValue ? esc(v) : ''}" placeholder="${isUserOnly ? 'introdu manual' : (hasValue ? '' : 'lipsă')}">`;
     }
 
     card.innerHTML = `
@@ -583,7 +590,7 @@ MEDIC_DASHBOARD_HTML = r"""
 
     const conf = data.confidence ? Math.round(data.confidence * 100) : null;
     html += `<div class="specialist-result">
-      🎯 Specialist recomandat:<br>${data.recommended_specialist}
+      🎯 Specialist recomandat:<br>${esc(data.recommended_specialist)}
       ${conf !== null ? `<span class="confidence">Încredere model: ${conf}%</span>` : ''}
     </div>`;
 
@@ -594,7 +601,7 @@ MEDIC_DASHBOARD_HTML = r"""
       for (const [name, p] of entries) {
         const pct = Math.round(p * 100);
         const isTop = name === data.recommended_specialist;
-        pills += `<span class="prob-pill ${isTop?'top':''}">${name}: ${pct}%</span>`;
+        pills += `<span class="prob-pill ${isTop?'top':''}">${esc(name)}: ${pct}%</span>`;
       }
       html += `<div class="probs-row">${pills}</div>`;
     }
@@ -606,7 +613,7 @@ MEDIC_DASHBOARD_HTML = r"""
         <option value="">— Păstrează recomandarea sistemului —</option>
         ${SPECIALISTS.map(s => `<option value="${s}" ${s===data.recommended_specialist?'disabled':''}>${s}</option>`).join('')}
       </select>
-      <button class="btn btn-sm" onclick="applyOverride('${data.report_id}')">Aplică</button>
+      <button class="btn btn-sm" onclick="applyOverride('${esc(data.report_id)}')">Aplică</button>
       <div id="overrideMsg" style="margin-top:8px; font-size:0.9em;"></div>
     </div>`;
 
@@ -618,9 +625,9 @@ MEDIC_DASHBOARD_HTML = r"""
         const cls = f.direction === 'supports' ? 'supports' : 'against';
         const arrow = f.direction === 'supports' ? '↑' : '↓';
         html += `<div class="shap-factor ${cls}">
-          <div>${f.sentence}</div>
+          <div>${esc(f.sentence)}</div>
           <div class="meta">
-            <span>${f.label}${f.value !== null ? ': '+f.value+' '+(f.unit||'') : ' (necunoscut)'}</span>
+            <span>${esc(f.label)}${f.value !== null ? ': '+esc(f.value)+' '+esc(f.unit||'') : ' (necunoscut)'}</span>
             <span>${arrow} impact: ${Math.abs(f.shap).toFixed(2)}</span>
           </div>
         </div>`;
@@ -630,7 +637,7 @@ MEDIC_DASHBOARD_HTML = r"""
 
     if (data.campuri_completate_automat && data.campuri_completate_automat.length) {
       const labels = data.campuri_completate_automat
-        .map(f => (FIELD_META[f] || {}).label || f).join(', ');
+        .map(f => esc((FIELD_META[f] || {}).label || f)).join(', ');
       html += `<div class="banner banner-info">
         ℹ️ Câmpuri completate automat cu valori implicite (lipseau): <b>${labels}</b>
       </div>`;
@@ -639,7 +646,7 @@ MEDIC_DASHBOARD_HTML = r"""
       html += `<div class="banner banner-info">🔌 Mod offline — raport generat fără AI.</div>`;
     }
 
-    html += `<div class="report-text"><b>📋 Raport:</b><br>${data.report_text.replace(/\n/g,'<br>')}</div>`;
+    html += `<div class="report-text"><b>📋 Raport:</b><br>${esc(data.report_text).replace(/\n/g,'<br>')}</div>`;
     c.innerHTML = html;
   }
 
@@ -683,18 +690,18 @@ MEDIC_DASHBOARD_HTML = r"""
       let html = '<table><tr><th>Nume</th><th>Email</th><th>Cont</th><th>Rapoarte</th><th></th></tr>';
       for (const p of data.patients) {
         html += `<tr>
-          <td><b>${p.name}</b></td>
-          <td>${p.email}</td>
+          <td><b>${esc(p.name)}</b></td>
+          <td>${esc(p.email)}</td>
           <td><span class="pill ${p.is_active?'pill-active':'pill-inactive'}">
             ${p.is_active?'Activ':'Neactivat'}</span></td>
           <td>${p.report_count}</td>
-          <td><button class="btn btn-sm" onclick="viewPatient('${p.patient_id}')">Vezi istoric</button></td>
+          <td><button class="btn btn-sm" onclick="viewPatient('${esc(p.patient_id)}')">Vezi istoric</button></td>
         </tr>`;
       }
       html += '</table>';
       c.innerHTML = html;
     } catch (e) {
-      c.innerHTML = '<div class="banner banner-err">Eroare: ' + e.message + '</div>';
+      c.innerHTML = '<div class="banner banner-err">Eroare: ' + esc(e.message) + '</div>';
     }
   }
 
@@ -707,8 +714,8 @@ MEDIC_DASHBOARD_HTML = r"""
       if (!r.ok) { c.innerHTML = '<div class="banner banner-err">Eroare</div>'; return; }
 
       let html = `<button class="btn btn-sm btn-secondary" onclick="loadPatients()">← Înapoi la listă</button>
-        <h2 style="color:#667eea; margin:15px 0;">${data.patient.name}</h2>
-        <p style="color:#666;">${data.patient.email} —
+        <h2 style="color:#667eea; margin:15px 0;">${esc(data.patient.name)}</h2>
+        <p style="color:#666;">${esc(data.patient.email)} —
           <span class="pill ${data.patient.is_active?'pill-active':'pill-inactive'}">
           ${data.patient.is_active?'Cont activ':'Cont neactivat'}</span></p>`;
 
@@ -724,30 +731,30 @@ MEDIC_DASHBOARD_HTML = r"""
             if (v === null || v === undefined) continue;
             const meta = FIELD_META[k];
             if (!meta) continue;
-            chips += `<span style="display:inline-block; background:#f0f4ff; padding:4px 10px; border-radius:12px; margin:3px; font-size:0.82em; color:#555;">${meta.label}: ${v}${meta.unit?' '+meta.unit:''}</span>`;
+            chips += `<span style="display:inline-block; background:#f0f4ff; padding:4px 10px; border-radius:12px; margin:3px; font-size:0.82em; color:#555;">${meta.label}: ${esc(v)}${meta.unit?' '+meta.unit:''}</span>`;
           }
           html += `<div style="border:1px solid #e0e0e0; border-radius:10px; padding:18px; margin:15px 0;">
             <div style="display:flex; justify-content:space-between;">
               <b>${date}</b>
-              ${rep.has_pdf ? `<a href="#" onclick="downloadPdf('${rep.report_id}'); return false;"
+              ${rep.has_pdf ? `<a href="#" onclick="downloadPdf('${esc(rep.report_id)}'); return false;"
                  style="color:#667eea;">📥 Descarcă PDF</a>` : ''}
             </div>
             <div style="margin:10px 0; font-size:1.1em;">
-              🎯 <b>${rep.final_specialist}</b>
+              🎯 <b>${esc(rep.final_specialist)}</b>
               ${rep.overridden ? `<span style="color:#e65100; font-size:0.85em;">
-                (suprascris — sistemul recomandase ${rep.recommended_specialist})</span>` : ''}
+                (suprascris — sistemul recomandase ${esc(rep.recommended_specialist)})</span>` : ''}
               ${!rep.used_gpt ? '<span style="color:#888; font-size:0.85em;"> · mod offline</span>' : ''}
             </div>
             <div style="margin: 10px 0;">${chips}</div>
             <div style="background:#f8f9ff; padding:12px; border-radius:8px; font-size:0.9em; line-height:1.6;">
-              ${rep.report_text.replace(/\n/g,'<br>')}
+              ${esc(rep.report_text).replace(/\n/g,'<br>')}
             </div>
           </div>`;
         }
       }
       c.innerHTML = html;
     } catch (e) {
-      c.innerHTML = '<div class="banner banner-err">Eroare: ' + e.message + '</div>';
+      c.innerHTML = '<div class="banner banner-err">Eroare: ' + esc(e.message) + '</div>';
     }
   }
 

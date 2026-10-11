@@ -293,6 +293,13 @@ PATIENT_DASHBOARD_HTML = r"""
       note: 'Aceste valori nu apar în buletinul de analize — introdu-le manual.' },
   ];
 
+  // Orice text venit de la server trece prin esc() inainte de innerHTML.
+  // Textul rapoartelor si valorile sunt date necontrolate.
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
   const token = localStorage.getItem('medrec_token');
   if (!token || localStorage.getItem('medrec_role') !== 'patient') {
     window.location.href = '/';
@@ -340,18 +347,18 @@ PATIENT_DASHBOARD_HTML = r"""
           if (v === null || v === undefined) continue;
           const meta = FIELD_META[k];
           if (!meta) continue;
-          chips += `<span class="value-chip">${meta.label}: ${v}${meta.unit?' '+meta.unit:''}</span>`;
+          chips += `<span class="value-chip">${meta.label}: ${esc(v)}${meta.unit?' '+meta.unit:''}</span>`;
         }
         html += `<div class="report-card">
           <div class="date">${date}${!rep.used_gpt ? ' · mod offline' : ''}</div>
-          <div class="specialist">🎯 ${rep.final_specialist}</div>
+          <div class="specialist">🎯 ${esc(rep.final_specialist)}</div>
           <div class="values-row">${chips}</div>
-          <div class="report-body">${rep.report_text.replace(/\n/g,'<br>')}</div>
+          <div class="report-body">${esc(rep.report_text).replace(/\n/g,'<br>')}</div>
         </div>`;
       }
       c.innerHTML = html;
     } catch (e) {
-      c.innerHTML = '<div class="banner banner-err">Eroare: ' + e.message + '</div>';
+      c.innerHTML = '<div class="banner banner-err">Eroare: ' + esc(e.message) + '</div>';
     }
   }
 
@@ -498,7 +505,7 @@ PATIENT_DASHBOARD_HTML = r"""
     } else {
       const step = meta.step || '0.01';
       inputHtml = `<input type="number" step="${step}" id="f-${field}"
-        value="${hasValue ? v : ''}" placeholder="${isUserOnly ? 'introdu manual' : (hasValue ? '' : 'lipsă')}">`;
+        value="${hasValue ? esc(v) : ''}" placeholder="${isUserOnly ? 'introdu manual' : (hasValue ? '' : 'lipsă')}">`;
     }
 
     card.innerHTML = `
@@ -540,7 +547,7 @@ PATIENT_DASHBOARD_HTML = r"""
     const conf = data.confidence ? Math.round(data.confidence * 100) : null;
 
     let html = `<div class="specialist-result">
-      🎯 Specialist recomandat:<br>${data.recommended_specialist}
+      🎯 Specialist recomandat:<br>${esc(data.recommended_specialist)}
       ${conf !== null ? `<span class="confidence">Încredere model: ${conf}%</span>` : ''}
     </div>`;
 
@@ -551,7 +558,7 @@ PATIENT_DASHBOARD_HTML = r"""
       for (const [name, p] of entries) {
         const pct = Math.round(p * 100);
         const isTop = name === data.recommended_specialist;
-        pills += `<span class="prob-pill ${isTop?'top':''}">${name}: ${pct}%</span>`;
+        pills += `<span class="prob-pill ${isTop?'top':''}">${esc(name)}: ${pct}%</span>`;
       }
       html += `<div class="probs-row">${pills}</div>`;
     }
@@ -564,9 +571,9 @@ PATIENT_DASHBOARD_HTML = r"""
         const cls = f.direction === 'supports' ? 'supports' : 'against';
         const arrow = f.direction === 'supports' ? '↑' : '↓';
         html += `<div class="shap-factor ${cls}">
-          <div>${f.sentence}</div>
+          <div>${esc(f.sentence)}</div>
           <div class="meta">
-            <span>${f.label}${f.value !== null ? ': '+f.value+' '+(f.unit||'') : ' (necunoscut)'}</span>
+            <span>${esc(f.label)}${f.value !== null ? ': '+esc(f.value)+' '+esc(f.unit||'') : ' (necunoscut)'}</span>
             <span>${arrow} impact: ${Math.abs(f.shap).toFixed(2)}</span>
           </div>
         </div>`;
@@ -576,7 +583,7 @@ PATIENT_DASHBOARD_HTML = r"""
 
     if (data.campuri_completate_automat && data.campuri_completate_automat.length) {
       const labels = data.campuri_completate_automat
-        .map(f => (FIELD_META[f] || {}).label || f).join(', ');
+        .map(f => esc((FIELD_META[f] || {}).label || f)).join(', ');
       html += `<div class="banner banner-info">
         ℹ️ Câmpuri completate automat cu valori implicite: <b>${labels}</b></div>`;
     }
@@ -584,7 +591,7 @@ PATIENT_DASHBOARD_HTML = r"""
       html += `<div class="banner banner-info">🔌 Mod offline — raport fără AI.</div>`;
     }
 
-    html += `<div class="report-body"><b>📋 Raport:</b><br>${data.report_text.replace(/\n/g,'<br>')}</div>`;
+    html += `<div class="report-body"><b>📋 Raport:</b><br>${esc(data.report_text).replace(/\n/g,'<br>')}</div>`;
     html += `<div class="banner banner-warn">
       ⚠️ Acest rezultat NU a fost salvat. Pentru un raport în istoricul tău,
       adresează-te medicului tău.</div>`;

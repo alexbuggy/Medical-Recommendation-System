@@ -18,6 +18,7 @@ cu parola obișnuită. Trebuie App Password.
 """
 
 import os
+import html as html_escape
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -92,7 +93,7 @@ def send_activation_email(to_email: str, patient_name: str,
         <h1 style="color: white; margin: 0;">🏥 MedRec</h1>
       </div>
       <div style="background: #f8f9ff; padding: 30px; border-radius: 0 0 12px 12px;">
-        <p>Bună, <b>{patient_name}</b>,</p>
+        <p>Bună, <b>{html_escape.escape(patient_name)}</b>,</p>
         <p>Medicul tău a încărcat rezultatele tale de laborator în sistemul MedRec.
            Pentru a-ți accesa contul și a vedea raportul, activează-ți contul
            folosind codul de mai jos:</p>

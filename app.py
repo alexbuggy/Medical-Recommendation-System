@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+import config
 from database import init_db
 from auth_routes import router as auth_router
 from medic_routes import router as medic_router
@@ -11,7 +12,13 @@ from templates import LOGIN_HTML
 from templates_medic import MEDIC_DASHBOARD_HTML
 from templates_patient import PATIENT_DASHBOARD_HTML
 
-app = FastAPI(title="MedRec", version="3.0.0-phase3")
+app = FastAPI(
+    title="MedRec",
+    version="3.0.0-phase3",
+    docs_url=None if config.IS_PRODUCTION else "/docs",
+    redoc_url=None if config.IS_PRODUCTION else "/redoc",
+    openapi_url=None if config.IS_PRODUCTION else "/openapi.json",
+)
 
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -22,10 +29,19 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=config.CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @app.on_event("startup")
@@ -54,4 +70,5 @@ async def patient_dashboard():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8080, reload=True)
+    uvicorn.run("app:app", host="127.0.0.1", port=8080,
+                reload=not config.IS_PRODUCTION)

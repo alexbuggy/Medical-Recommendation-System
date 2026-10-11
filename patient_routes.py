@@ -133,8 +133,12 @@ async def self_extract(
         })
 
     except Exception as e:
+        # Clientul primeste doar un id de corelare; detaliile raman in log.
+        error_id = uuid.uuid4().hex[:8]
         traceback.print_exc()
-        return JSONResponse({"error": str(e)}, status_code=500)
+        print(f"[error_id={error_id}] {type(e).__name__}: {e}")
+        return JSONResponse({"error": "Eroare internă", "error_id": error_id},
+                             status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -175,5 +179,8 @@ async def self_predict(payload: SelfPredictRequest,
         })
 
     except Exception as e:
+        # Clientul primeste doar un id de corelare; detaliile raman in log.
+        error_id = uuid.uuid4().hex[:8]
         traceback.print_exc()
-        raise HTTPException(500, str(e))
+        print(f"[error_id={error_id}] {type(e).__name__}: {e}")
+        raise HTTPException(500, f"Eroare internă (id: {error_id})")
