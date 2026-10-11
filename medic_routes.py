@@ -149,8 +149,12 @@ async def medic_extract(
         })
 
     except Exception as e:
+        # Clientul primeste doar un id de corelare; detaliile raman in log.
+        error_id = uuid.uuid4().hex[:8]
         traceback.print_exc()
-        return JSONResponse({"error": str(e)}, status_code=500)
+        print(f"[error_id={error_id}] {type(e).__name__}: {e}")
+        return JSONResponse({"error": "Eroare internă", "error_id": error_id},
+                             status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +273,9 @@ async def medic_predict(payload: PredictRequest,
             MedicPatientLink.patient_id == patient_profile.id,
         ).first()
         if not link:
+            # Link records that this medic has worked with this patient (for
+            # the patient list). It does NOT grant access to other medics'
+            # reports; report reads are scoped by uploaded_by_medic_id.
             db.add(MedicPatientLink(
                 medic_id=medic.id, patient_id=patient_profile.id))
 
@@ -299,9 +306,12 @@ async def medic_predict(payload: PredictRequest,
     except HTTPException:
         raise
     except Exception as e:
+        # Clientul primeste doar un id de corelare; detaliile raman in log.
+        error_id = uuid.uuid4().hex[:8]
         traceback.print_exc()
+        print(f"[error_id={error_id}] {type(e).__name__}: {e}")
         db.rollback()
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, f"Eroare internă (id: {error_id})")
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +332,8 @@ def list_patients(medic: User = Depends(require_medic),
             continue
         patient_user = db.query(User).filter(User.id == profile.user_id).first()
         report_count = db.query(Report).filter(
-            Report.patient_id == profile.id).count()
+            Report.patient_id == profile.id,
+            Report.uploaded_by_medic_id == medic.id).count()
         result.append({
             "patient_id": profile.id,
             "name": patient_user.full_name if patient_user else "?",
@@ -355,7 +366,8 @@ def patient_history(patient_id: str, medic: User = Depends(require_medic),
 
     patient_user = db.query(User).filter(User.id == profile.user_id).first()
     reports = db.query(Report).filter(
-        Report.patient_id == patient_id).order_by(
+        Report.patient_id == patient_id,
+        Report.uploaded_by_medic_id == medic.id).order_by(
         Report.created_at.desc()).all()
 
     return {
@@ -389,7 +401,9 @@ def patient_history(patient_id: str, medic: User = Depends(require_medic),
 @router.get("/report/{report_id}/pdf")
 def download_report_pdf(report_id: str, medic: User = Depends(require_medic),
                          db: Session = Depends(get_db)):
-    report = db.query(Report).filter(Report.id == report_id).first()
+    report = db.query(Report).filter(
+        Report.id == report_id,
+        Report.uploaded_by_medic_id == medic.id).first()
     if not report:
         raise HTTPException(404, "Raport inexistent")
     link = db.query(MedicPatientLink).filter(
@@ -415,7 +429,9 @@ def override_specialist(report_id: str, payload: OverrideRequest,
             400, f"Specialist invalid: {payload.specialist}. "
                  f"Valide: {VALID_SPECIALISTS}")
 
-    report = db.query(Report).filter(Report.id == report_id).first()
+    report = db.query(Report).filter(
+        Report.id == report_id,
+        Report.uploaded_by_medic_id == medic.id).first()
     if not report:
         raise HTTPException(404, "Raport inexistent")
 
